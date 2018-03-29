@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gitlab-db
+  labels:
+    type: local
+    app: gitlab
+    tiers: database
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+    path: /tmp/data1/gitlab-db
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gitlab-dblog
+  labels:
+    type: local
+    app: gitlab
+    tiers: database
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 1Gi
+  hostPath:
+    path: /tmp/data1/gitlab-dblog
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gitlab-data
+  labels:
+    type: local
+    app: gitlab
+    tiers: webapp
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 1Gi
+  hostPath:
+    path: /tmp/data1/gitlab-data

@@ -1,0 +1,113 @@
+version: '2'
+services:
+  gitlab-rd:
+    image: amd64/redis:4.0
+    volumes:
+    - gitlab-redis:/var/lib/redis
+    labels:
+      io.rancher.container.pull_image: always
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |-
+        external_url 'https://gitlab.example.com'
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+        nginx['proxy_set_headers'] = {
+           "X-Forwarded-Proto" => "https",
+           "X-Forwarded-Ssl" => "on"
+        }
+
+        gitlab_rails['gitlab_shell_ssh_port'] = 22
+        
+        # https://docs.gitlab.com/omnibus/settings/smtp.html
+        gitlab_rails['smtp_enable'] = false
+        gitlab_rails['smtp_address'] = "smtp.mailgun.org"
+        gitlab_rails['smtp_port'] = 587
+        gitlab_rails['smtp_authentication'] = "plain"
+        gitlab_rails['smtp_enable_starttls_auto'] = true
+        gitlab_rails['smtp_user_name'] = "postmaster@mg.gitlab.com"
+        gitlab_rails['smtp_password'] = "8b6ffrmle180"
+        gitlab_rails['smtp_domain'] = "mg.gitlab.com"
+        
+        # https://docs.gitlab.com/omnibus/settings/redis.html
+        gitlab_rails['redis_host'] = "redis"
+        gitlab_rails['redis_port'] = "6379"
+        gitlab_rails['redis_database'] = 0
+        gitlab_rails['redis_socket'] = "/var/opt/gitlab/redis/redis.socket"
+        
+        # https://docs.gitlab.com/ee/administration/environment_variables.html
+        #gitlab_rails['db_adapter'] = "${GITLAB_DATABASE_ADAPTER}"
+        #gitlab_rails['db_host'] = "${GITLAB_DATABASE_HOST}"
+        #gitlab_rails['db_port'] = "${GITLAB_DATABASE_PORT}"
+        #gitlab_rails['db_database'] = "${GITLAB_DATABASE_DATABASE}"
+        #gitlab_rails['db_username'] = "${GITLAB_DATABASE_USERNAME}"
+        #gitlab_rails['db_password'] = "${GITLAB_DATABASE_PASSWORD}"
+        
+        # https://docs.gitlab.com/omnibus/settings/ldap.html
+        gitlab_rails['omniauth_enabled'] = "false"
+        gitlab_rails['omniauth_auto_link_ldap_user'] = "true"
+        gitlab_rails['omniauth_block_auto_created_users'] = "true"
+        gitlab_rails['omniauth_allow_single_sign_on'] = ['saml']
+        gitlab_rails['omniauth_auto_link_saml_user'] = "true"
+        gitlab_rails['omniauth_providers'] = [
+            {
+              name: 'saml',
+              label:'VMware Identity Manager',
+              args: {
+                       assertion_consumer_service_url: 'https://gitlab.example.com/users/auth/saml/callback',
+                       GITLAB_IDP_CERT_FINGERPRINT: "V3ry1ns3cur3P4ssw0rd",
+                       idp_sso_target_url: 'https://vmware-workspace.example.com/SAAS/auth/federation/sso',
+                       issuer: 'https://gitlab.example.com',
+                       name_identifier_format: 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent'
+                     },
+            }
+        ]
+        gitlab_rails['omniauth_auto_sign_in_with_provider'] = 'saml'
+
+        gitlab_rails['ldap_enabled'] = false
+        gitlab_rails['ldap_servers'] = YAML.load <<-'EOS'
+          main: # 'main' is the GitLab 'provider ID' of this LDAP server
+            label: 'Active Directory'
+            host: 'example.com'
+            port: 389
+            uid: 'sAMAccountName'
+            method: 'plain' # "tls" or "ssl" or "plain"
+            bind_dn: 'CN=LDAP GitLab,OU=USERS,DC=EXAMPLE,DC=COM'
+            password: "V3ry1ns3cur3P4ssw0rd"
+            active_directory: true
+            allow_username_or_email_login: true
+            block_auto_created_users: true
+            base: 'dc=example, dc=com'
+            user_filter: '(memberOf=CN=GITLAB USERGROUP,OU=GROUPS,DC=EXAMPLE,DC=COM)'
+            attributes:
+              username: ['uid', 'userid', 'sAMAccountName']
+              email:    ['mail', 'email', 'userPrincipalName']
+              name:       'cn'
+              first_name: 'givenName'
+              last_name:  'sn'
+        EOS
+    volumes:
+    - gitlab-config:/etc/gitlab
+    - gitlab-logs:/var/log/gitlab
+    - gitlab-data:/var/opt/gitlab
+    links:
+    - gitlab-pg:postgres
+    - gitlab-rd:redis
+    ports:
+    - 32722:22/tcp
+    - 32724:443/tcp
+    - 32723:80/tcp
+    - 32721:9090/tcp
+    labels:
+      io.rancher.container.pull_image: always
+  gitlab-pg:
+    image: amd64/postgres:9.5
+    environment:
+      POSTGRES_DB: gitlab
+      POSTGRES_PASSWORD: nNdzIVfmLpV2v3N3YpcU
+      POSTGRES_USER: gitlab
+    volumes:
+    - gitlab-db:/var/lib/postgresql/data
+    labels:
+      io.rancher.container.pull_image: always
